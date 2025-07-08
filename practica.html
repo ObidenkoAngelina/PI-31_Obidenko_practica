@@ -76,10 +76,10 @@
         margin-bottom: 10px;
         font-size: 18px;
     }
-    .winter { background-color: #d4f1f9; }
-    .spring { background-color: #e8f8f5; }
-    .summer { background-color: #e8f8c1; }
-    .autumn { background-color: #fdebd0; }
+    .winter { background-color: #cbfeff; }
+    .spring { background-color: #d4ffe3; }
+    .summer { background-color: #ecffbc; }
+    .autumn { background-color: #ffe5bd; }
     .dying {
         animation: fadeOut 2s infinite alternate;
     }
@@ -114,7 +114,6 @@
         <button @click="changeSpeed">Скорость: {{speed}}x</button>
         <button @click="simulateDay">Симуляция 1 дня</button>
         <button @click="reset">Начать заново</button>
-        <button @click="addAnimal">Добавить животное</button>
     </div>
     
     <div class="simulation-area" :class="season.toLowerCase()" ref="simulationArea">
@@ -264,21 +263,33 @@ class Animal {
 
     // Метод поиска укрытия — ближайшее дерево или куст
     findShelter(plants) {
-        let closestShelter = null;
-        let minDistance = Infinity;
-        for (const plant of plants) {
-            if ((plant.type === 'Tree' || plant.type === 'Bush') && plant.health > 0) {
-                const dx = plant.x - this.x;
-                const dy = plant.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance < minDistance) {
-                    closestShelter = plant;
-                    minDistance = distance;
-                }
+    let closestShelter = null;
+    let minDistance = Infinity;
+
+    // Определяем, какие типы укрытий подходят текущему животному
+    let shelterTypes = [];
+
+    if (this.type === 'Herbivore') {
+        shelterTypes = ['Tree'];  // только деревья
+    } else if (this.type === 'Rabbit') {
+        shelterTypes = ['Tree', 'Bush'];  // деревья и кусты
+    } else {
+        shelterTypes = [];  // для других — нет укрытий
+    }
+
+    for (const plant of plants) {
+        if (shelterTypes.includes(plant.type) && plant.health > 0 && plant.size > this.size) {
+            const dx = plant.x - this.x;
+            const dy = plant.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < minDistance) {
+                closestShelter = plant;
+                minDistance = distance;
             }
         }
-        return closestShelter;
     }
+    return closestShelter;
+}
 
     move(areaWidth, areaHeight, currentSeason, plants) {
         if (this.isEating) return;
@@ -294,11 +305,12 @@ class Animal {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < this.size / 2 + this.shelterTarget.size / 2) {
-                    this.isInShelter = true;
-                    this.x = this.shelterTarget.x;
-                    this.y = this.shelterTarget.y;
-                    return; // Остаёмся в укрытии — не двигаемся
-                }
+    this.isInShelter = true;
+    // Ставим животное в центр растения-укрытия
+    this.x = this.shelterTarget.x + (this.shelterTarget.size / 2) - (this.size / 2);
+    this.y = this.shelterTarget.y + (this.shelterTarget.size / 2) - (this.size / 2);
+    return; // Остаёмся в укрытии — не двигаемся
+}
                 this.direction = Math.atan2(dy, dx) * 180 / Math.PI;
             } else {
                 this.isInShelter = false;
@@ -409,24 +421,6 @@ class Animal {
         return this.energy >= this.reproductionEnergyThreshold &&
                Math.random() < this.reproductionRate;
     }
-
-    findShelter(plants) {
-    let closestShelter = null;
-    let minDistance = Infinity;
-    for (const plant of plants) {
-        // Ищем только деревья или кусты, которые живы и больше животного по размеру
-        if ((plant.type === 'Tree' || plant.type === 'Bush') && plant.health > 0 && plant.size > this.size) {
-            const dx = plant.x - this.x;
-            const dy = plant.y - this.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < minDistance) {
-                closestShelter = plant;
-                minDistance = distance;
-            }
-        }
-    }
-    return closestShelter;
-}
 
     update(plants, areaWidth, areaHeight, currentSeason) {
         this.age++;
@@ -576,7 +570,7 @@ createApp({
                 color: '#0db5a7',
                 size: 23,
                 speed: 4.0,
-                hungerRate: 0.5,
+                hungerRate: 0.2,
                 visionRange: 100,
                 foodPreference: ['Flower', 'Grass'],
                 reproductionRate: 0.02,
@@ -588,7 +582,7 @@ createApp({
                 color: '#9c6816',
                 size: 20,
                 speed: 5.0,
-                hungerRate: 0.7,
+                hungerRate: 0.4,
                 visionRange: 120,
                 foodPreference: ['Grass'],
                 reproductionRate: 0.03,
