@@ -12,50 +12,33 @@
         position: relative;
     }
     .simulation-area {
-        width: 600px;
-        height: 400px;
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 1000px;
+        height: 100vh;
         border: 2px solid #2c3e50;
-        position: relative;
-        margin-bottom: 20px;
+        margin: 0;
         transition: background-color 1s ease;
-        overflow: hidden;
+        background: white;
+        box-sizing: border-box;
+        z-index: 1000;
+        overflow: visible;
     }
     .plant {
         position: absolute;
         border-radius: 50%;
         opacity: 0.8;
         transition: all 0.5s ease;
-        cursor: pointer;
-    }
-    .plant::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        bottom: 100%;
-        left: clamp(20px, 50%, calc(100% - 20px));
-        transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 5px 10px;
-        border-radius: 4px;
-        font-size: 12px;
-        white-space: pre;
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity 0.3s;
-        z-index: 100;
-        pointer-events: none;
-        min-width: 120px;
-        text-align: center;
-    }
-    .plant:hover::after {
-        visibility: visible;
-        opacity: 1;
+        z-index: 1;
     }
     .controls {
         margin-bottom: 20px;
         display: flex;
+        flex-direction: column;
         gap: 10px;
-        flex-wrap: wrap;
+        align-items: flex-start;
+        width: 100%;
     }
     button {
         padding: 8px 16px;
@@ -79,6 +62,7 @@
     }
     h1 {
         color: #2c3e50;
+        font-size: 24px;
     }
     .season-display {
         font-weight: bold;
@@ -93,8 +77,8 @@
         animation: fadeOut 2s infinite alternate;
     }
     .winter-sleep {
-        opacity: 0.5;
-        filter: grayscale(30%);
+        opacity: 0.3;
+        filter: grayscale(70%);
     }
     @keyframes fadeOut {
         from { opacity: 0.8; }
@@ -105,18 +89,17 @@
 <body>
 <div id="app">
     <h1>Симуляция растительного сообщества</h1>
-    
-    <div class="controls">
-        <button @click="addPlant">Добавить растение</button>
-        <button @click="simulateDay">Симуляция 1 дня</button>
-        <button @click="startSimulation" :disabled="isSimulating">Старт</button>
-        <button @click="stopSimulation" :disabled="!isSimulating">Стоп</button>
-        <button @click="reset">Сброс</button>
-        <button @click="changeSpeed">Скорость: {{speed}}x</button>
-    </div>
-    
+
     <div class="season-display">
         Год: {{ year }}, Сезон: {{ season }} (День {{ dayInSeason }}/{{ seasonLength }})
+    </div>
+    
+    <div class="controls">
+        <button @click="startSimulation" :disabled="isSimulating">Старт</button>
+        <button @click="stopSimulation" :disabled="!isSimulating">Стоп</button>
+        <button @click="changeSpeed">Скорость: {{speed}}x</button>
+        <button @click="simulateDay">Симуляция 1 дня</button>
+        <button @click="reset">Начать заново</button>
     </div>
     
     <div class="simulation-area" :class="season.toLowerCase()" ref="simulationArea">
@@ -126,17 +109,15 @@
             class="plant"
             :class="{ 
                 dying: plant.isDying,
-                'winter-sleep': (plant.type === 'Tree' || plant.type === 'Bush') && season === 'Winter'
+                'winter-sleep': plant.isDormant
             }"
-            :data-tooltip="getPlantTooltip(plant)"
             :style="{
                 left: plant.x + 'px',
                 top: plant.y + 'px',
                 width: plant.size + 'px',
                 height: plant.size + 'px',
                 backgroundColor: plant.color,
-                zIndex: (plant.type === 'Flower' || plant.type === 'Grass') ? 1 : 3,
-                opacity: plant.isDormant ? 0.5 : 0.8
+                zIndex: (plant.type === 'Flower' || plant.type === 'Grass') ? 1 : 3
             }"
         ></div>
     </div>
@@ -144,12 +125,83 @@
     <div class="stats">
         <p>День: {{ totalDays }} ({{ season }})</p>
         <p>Растений: {{ plants.length }} (Активных: {{ activePlantsCount }})</p>
-        <p v-if="season === 'Autumn'">Осеннее увядание: {{ autumnDecayRate.toFixed(2) }}% в день</p>
     </div>
 </div>
 
 <script>
 const { createApp, ref, computed, onMounted } = Vue;
+
+// Класс для растений
+class Plant {
+    constructor(type, x, y, config) {
+        this.id = Date.now() + Math.random();
+        this.x = x;
+        this.y = y;
+        this.size = config.initialSize;
+        this.color = config.color;
+        this.type = type;
+        this.growthRate = config.growthRate;
+        this.aggression = config.aggression;
+        this.maxSize = config.maxSize;
+        this.shadeTolerance = config.shadeTolerance;
+        this.coldResistance = config.coldResistance;
+        this.autumnDecay = config.autumnDecay;
+        this.seasonalGrowth = config.seasonalGrowth;
+        this.immortal = config.immortal;
+        this.reproductionRate = config.reproductionRate;
+        this.reproductionAge = config.reproductionAge;
+        this.reproductionRadius = config.reproductionRadius;
+        this.respawnInSpring = config.respawnInSpring;
+        this.respawnChance = config.respawnChance;
+        this.height = Math.floor(Math.random() * 3) + 1;
+        this.age = 0;
+        this.health = 0.7 + Math.random() * 0.3;
+        this.isDormant = false;
+        this.isDying = false;
+        this.neighborFlowerDays = 0;
+    }
+
+    // Метод для проверки, может ли растение расти в текущий сезон
+    canGrowInSeason(currentSeason) {
+        return !this.isDormant && !this.isDying && (this.immortal || this.health > 0);
+    }
+
+    // Метод для обновления состояния растения
+    updateState(season, dayInSeason, seasonLength) {
+        if (!this.immortal && this.health <= 0) {
+            return false; // Растение умерло
+        }
+
+        this.age++;
+        
+        if (season === 'Autumn' && !this.immortal && this.autumnDecay > 0) {
+            const autumnProgress = dayInSeason / seasonLength;
+            const decayDamage = 0.02 + 0.15 * autumnProgress * this.autumnDecay;
+            this.health -= decayDamage;
+            this.isDying = true;
+        } else {
+            this.isDying = false;
+        }
+
+        if (season === 'Winter' && !this.immortal) {
+            const winterDamage = 0.02 + (0.1 * (1 - this.coldResistance));
+            this.health -= winterDamage;
+        }
+
+        return true; // Растение живо
+    }
+
+    // Метод для роста растения
+    grow(light, growthModifier, areaWidth, areaHeight) {
+        if (this.health > 0.5 && this.size < this.maxSize) {
+            const sizeFactor = (this.type === 'Tree' || this.type === 'Bush') ? 
+                (1 - (this.size / this.maxSize) * 0.5) : 1;
+            this.size += this.growthRate * light * growthModifier * sizeFactor;
+            this.x = Math.max(0, Math.min(areaWidth - this.size, this.x));
+            this.y = Math.max(0, Math.min(areaHeight - this.size, this.y));
+        }
+    }
+}
 
 createApp({
     setup() {
@@ -183,23 +235,25 @@ createApp({
         });
 
         const isPositionOccupied = (x, y, size, plantsArray) => {
-            return plantsArray.some(plant => {
+            for (const plant of plantsArray) {
                 const distance = Math.sqrt(
                     Math.pow(plant.x - x, 2) + 
                     Math.pow(plant.y - y, 2)
                 );
-                return distance < (plant.size + size) / 2 + 10;
-            });
+                if (distance < (plant.size + size) / 2 + 10) {
+                    return true;
+                }
+            }
+            return false;
         };
         
-        // Параметры растений
         const plantTypes = [
             { 
                 name: 'Tree', 
                 color: '#27ae60', 
                 growthRate: 0.2,  
                 aggression: 0.7, 
-                maxSize: 120, 
+                maxSize: 1000, 
                 shadeTolerance: 0.3, 
                 coldResistance: 1.0,
                 autumnDecay: 0,
@@ -213,7 +267,7 @@ createApp({
             { 
                 name: 'Bush', 
                 color: '#16a085', 
-                growthRate: 0.18, 
+                growthRate: 0.15, 
                 aggression: 0.6, 
                 maxSize: 70, 
                 shadeTolerance: 0.4, 
@@ -231,45 +285,38 @@ createApp({
                 color: '#e74c3c', 
                 growthRate: 1.5, 
                 aggression: 0.3, 
-                maxSize: 18, 
+                maxSize: 20, 
                 shadeTolerance: 0.8, 
-                coldResistance: 0.3, 
+                coldResistance: 0.2,
                 autumnDecay: 0.7,
                 seasonalGrowth: false,
                 immortal: false,
-                reproductionRate: 0.6,
+                reproductionRate: 0.3,
                 reproductionAge: 15,
                 reproductionRadius: 20,
                 respawnInSpring: true,
-                respawnChance: 0.7,
+                respawnChance: 0.6,
                 initialSize: 4,
             },
             { 
                 name: 'Grass', 
                 color: '#2ecc71', 
-                growthRate: 1.8, 
-                aggression: 0.5, 
-                maxSize: 15, 
+                growthRate: 2.2,
+                aggression: 0.7,
+                maxSize: 10, 
                 shadeTolerance: 0.9, 
                 coldResistance: 0.4, 
                 autumnDecay: 0.5,
                 seasonalGrowth: false,
                 immortal: false,
-                reproductionRate: 0.9, 
-                reproductionAge: 5,
-                reproductionRadius: 10,
+                reproductionRate: 0.9,
+                reproductionAge: 3,
+                reproductionRadius: 15,
                 respawnInSpring: true,
-                respawnChance: 0.95,
+                respawnChance: 0.9,
                 initialSize: 3
             }
         ];
-        
-        const getPlantTooltip = (plant) => {
-            let status = plant.isDormant ? 
-                ((plant.type === 'Tree' || plant.type === 'Bush') ? 'Зимний покой' : 'Спящее') : 
-                plant.isDying ? 'Умирает' : 'Активно';
-            return `Тип: ${plant.type}\nВозраст: ${plant.age} дней\nЗдоровье: ${plant.health.toFixed(2)}\nРазмер: ${plant.size.toFixed(1)}px\nСтатус: ${status}`;
-        };
         
         const calculateGrowthModifier = (plant) => {
             if (!plant.seasonalGrowth) {
@@ -306,23 +353,11 @@ createApp({
             
             const currentSeason = seasons[currentSeasonIndex.value];
             plants.value.forEach(plant => {
-                plant.isDormant = !plant.immortal && !currentSeason.canGrow.includes(plant.type);
-                
-                if (!plant.immortal) {
-                    if (season.value === 'Autumn' && plant.autumnDecay > 0) {
-                        plant.isDying = true;
-                    } else {
-                        plant.isDying = false;
-                    }
-                    
-                    if (season.value === 'Winter' && plant.coldResistance < 0.5) {
-                        plant.health -= 0.05;
-                    }
-                }
+                plant.isDormant = !currentSeason.canGrow.includes(plant.type);
             });
             
             if (season.value === 'Autumn') {
-                autumnDecayRate.value = (dayInSeason.value / seasonLength.value) * 100;
+                autumnDecayRate.value = dayInSeason.value / seasonLength.value;
             } else {
                 autumnDecayRate.value = 0;
             }
@@ -349,33 +384,12 @@ createApp({
                         !isPositionOccupied(deadPlant.x, deadPlant.y, deadPlant.size, plants.value)) {
                         const type = plantTypes.find(t => t.name === deadPlant.type);
                         if (type) {
-                            newPlants.push({
-                                id: Date.now() + Math.random(),
-                                x: deadPlant.x,
-                                y: deadPlant.y,
-                                size: type.initialSize,
-                                color: type.color,
-                                type: type.name,
-                                growthRate: type.growthRate,
-                                aggression: type.aggression,
-                                maxSize: type.maxSize,
-                                shadeTolerance: type.shadeTolerance,
-                                coldResistance: type.coldResistance,
-                                autumnDecay: type.autumnDecay,
-                                seasonalGrowth: type.seasonalGrowth,
-                                immortal: type.immortal,
-                                reproductionRate: type.reproductionRate,
-                                reproductionAge: type.reproductionAge,
-                                reproductionRadius: type.reproductionRadius,
-                                respawnInSpring: type.respawnInSpring,
-                                respawnChance: type.respawnChance,
-                                height: Math.floor(Math.random() * 3) + 1,
-                                age: 0,
-                                health: 0.8 + Math.random() * 0.2,
-                                isDormant: false,
-                                isDying: false,
-                                neighborFlowerDays: 0
-                            });
+                            newPlants.push(new Plant(
+                                type.name,
+                                deadPlant.x,
+                                deadPlant.y,
+                                type
+                            ));
                         }
                     }
                 });
@@ -386,9 +400,9 @@ createApp({
                 );
             }
         };
-        
+
         const addPlant = (specificType, x, y) => {
-            if (!simulationArea.value) return;
+            if (!simulationArea.value || plants.value.length >= 1000) return;
             
             const areaWidth = simulationArea.value.clientWidth;
             const areaHeight = simulationArea.value.clientHeight;
@@ -401,7 +415,7 @@ createApp({
             
             let posX, posY;
             let attempts = 0;
-            const maxAttempts = 100;
+            const maxAttempts = 50;
             
             if (x === undefined || y === undefined) {
                 do {
@@ -417,33 +431,16 @@ createApp({
                 if (isPositionOccupied(posX, posY, size, plants.value)) return;
             }
             
-            plants.value.push({
-                id: Date.now() + Math.random(),
-                x: posX,
-                y: posY,
-                size: size,
-                color: type.color,
-                type: type.name,
-                growthRate: type.growthRate,
-                aggression: type.aggression,
-                maxSize: type.maxSize,
-                shadeTolerance: type.shadeTolerance,
-                coldResistance: type.coldResistance,
-                autumnDecay: type.autumnDecay,
-                seasonalGrowth: type.seasonalGrowth,
-                immortal: type.immortal,
-                reproductionRate: type.reproductionRate,
-                reproductionAge: type.reproductionAge,
-                reproductionRadius: type.reproductionRadius,
-                respawnInSpring: type.respawnInSpring,
-                respawnChance: type.respawnChance,
-                height: Math.floor(Math.random() * 3) + 1,
-                age: 0,
-                health: 0.8 + Math.random() * 0.2,
-                isDormant: !type.immortal && !canGrowNow,
-                isDying: false,
-                neighborFlowerDays: 0
-            });
+            plants.value.push(new Plant(
+                type.name,
+                posX,
+                posY,
+                type
+            ));
+            
+            // Устанавливаем dormancy status после создания растения
+            const newPlant = plants.value[plants.value.length - 1];
+            newPlant.isDormant = !canGrowNow;
         };
         
         const calculateLight = (plant) => {
@@ -461,7 +458,7 @@ createApp({
                     );
                 
                     if (distance < (plant.size + otherPlant.size) / 2) {
-                        light -= 0.3 * (1 - plant.shadeTolerance);
+                        light -= 0.4 * (1 - plant.shadeTolerance);
                     }
                 }
             }
@@ -477,7 +474,7 @@ createApp({
             const areaWidth = simulationArea.value.clientWidth;
             const areaHeight = simulationArea.value.clientHeight;
             
-            // Обновляем счетчик соседства цветов
+            // Обновляем состояние соседства для цветов
             plants.value.forEach(plant => {
                 if (plant.type === 'Flower' && !plant.isDormant && !plant.isDying) {
                     const neighbors = plants.value.filter(other =>
@@ -497,7 +494,7 @@ createApp({
                 }
             });
             
-            // Удаляем умершие растения и запоминаем их
+            // Удаляем мертвые растения
             plants.value.forEach(plant => {
                 if (!plant.immortal && plant.health <= 0) {
                     rememberDeadPlant(plant);
@@ -505,68 +502,61 @@ createApp({
             });
             plants.value = plants.value.filter(p => p.immortal || p.health > 0);
             
-            // Обрабатываем рост и здоровье
+            // Обновляем и растем
             for (let i = 0; i < plants.value.length; i++) {
                 const plant = plants.value[i];
-                plant.age++;
+                
+                // Обновляем состояние растения
+                const isAlive = plant.updateState(season.value, dayInSeason.value, seasonLength.value);
+                if (!isAlive) continue;
                 
                 if (plant.isDormant) {
                     if (!plant.immortal) {
-                        plant.health -= 0.005;
+                        plant.health -= 0.01;
                     }
-                } else {
-                    // Вычисляем перекрытие для цветов
-                    let coverageFactor = 0;
-                    if (plant.type === 'Flower') {
-                        // Проверяем перекрытие с деревьями и кустами
-                        for (const other of plants.value) {
-                            if (other.id !== plant.id && (other.type === 'Tree' || other.type === 'Bush') && !other.isDormant) {
-                                // Проверяем пересечение по координатам и размерам (округлим до кругов)
-                                const dx = (plant.x + plant.size / 2) - (other.x + other.size / 2);
-                                const dy = (plant.y + plant.size / 2) - (other.y + other.size / 2);
-                                const dist = Math.sqrt(dx * dx + dy * dy);
-                                const radiusSum = (plant.size + other.size) / 2;
-                                if (dist < radiusSum) {
-                                    // Чем меньше dist, тем сильнее перекрытие
-                                    const overlap = (radiusSum - dist) / radiusSum; // от 0 до 1
-                                    coverageFactor += overlap;
-                                }
+                    continue;
+                }
+                
+                // Проверяем покрытие для травы и цветов
+                let coverageFactor = 0;
+                if (plant.type === 'Flower' || plant.type === 'Grass') {
+                    for (const other of plants.value) {
+                        if (other.id !== plant.id && (other.type === 'Tree' || other.type === 'Bush') && !other.isDormant) {
+                            const dx = (plant.x + plant.size / 2) - (other.x + other.size / 2);
+                            const dy = (plant.y + plant.size / 2) - (other.y + other.size / 2);
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            const radiusSum = (plant.size + other.size) / 2;
+                            if (dist < radiusSum) {
+                                const overlap = (radiusSum - dist) / radiusSum;
+                                coverageFactor += overlap;
                             }
                         }
-                        coverageFactor = Math.min(coverageFactor, 1);
-                        if (coverageFactor > 0) {
-                            // Уменьшаем здоровье цветка пропорционально перекрытию
-                            plant.health -= 0.05 * coverageFactor;
-                        }
                     }
-                    
-                    const light = calculateLight(plant);
-                    const growthModifier = calculateGrowthModifier(plant);
-                    
-                    if (!plant.immortal && season.value === 'Autumn' && plant.autumnDecay > 0) {
-                        const decayFactor = (dayInSeason.value / seasonLength.value) * plant.autumnDecay;
-                        plant.health -= 0.02 + (0.05 * decayFactor);
+                    coverageFactor = Math.min(coverageFactor, 1);
+                    if (coverageFactor > 0) {
+                        plant.health -= 0.08 * coverageFactor;
                     }
-                    
-                    plant.health = Math.min(1.0, plant.health + 
-                        0.03 * light * plant.aggression * growthModifier - 
-                        0.01);
-                    
-                    if (plant.health > 0.5 && plant.size < plant.maxSize) {
-                        const sizeFactor = (plant.type === 'Tree' || plant.type === 'Bush') ? 
-                            (1 - (plant.size / plant.maxSize) * 0.5) : 1;
-                        plant.size += plant.growthRate * light * growthModifier * sizeFactor;
-                        plant.x = Math.max(0, Math.min(areaWidth - plant.size, plant.x));
-                        plant.y = Math.max(0, Math.min(areaHeight - plant.size, plant.y));
-                    }
-                    
+                }
+                
+                const light = calculateLight(plant);
+                const growthModifier = calculateGrowthModifier(plant);
+                
+                // Обновляем здоровье
+                const healthChange = 0.03 * light * plant.aggression * growthModifier - 0.015;
+                plant.health = Math.min(1.0, plant.health + healthChange);
+                
+                // Растем
+                plant.grow(light, growthModifier, areaWidth, areaHeight);
+                
+                // Размножение
+                if (plant.canGrowInSeason(season.value)) {
                     // Размножение деревьев и кустов
                     if ((plant.type === 'Tree' || plant.type === 'Bush') 
                         && season.value === 'Spring' 
                         && plant.age >= plant.reproductionAge 
                         && (plant.age % plant.reproductionAge === 0) 
                         && Math.random() < plant.reproductionRate 
-                        && plants.value.length < 100) {
+                        && plants.value.length < 300) {
                         
                         const childrenCount = 1;
                         for (let j = 0; j < childrenCount; j++) {
@@ -586,14 +576,14 @@ createApp({
                             }
                         }
                     }
-                    // Размножение цветов и травы
-                    else if ((plant.type === 'Flower' || plant.type === 'Grass') 
+                    // Размножение травы
+                    else if (plant.type === 'Grass' 
                         && (season.value === 'Spring' || season.value === 'Summer') 
                         && (plant.age % plant.reproductionAge === 0) 
-                        && Math.random() < plant.reproductionRate 
-                        && plants.value.length < 150) {
+                        && Math.random() < plant.reproductionRate) {
                         
-                        const childrenCount = plant.type === 'Grass' ? 3 + Math.floor(Math.random() * 5) : Math.floor(Math.random() * 3) + 1;
+                        const childrenCount = Math.floor(Math.random() * 5) + 2;
+                        
                         for (let j = 0; j < childrenCount; j++) {
                             const angle = Math.random() * Math.PI * 2;
                             const distance = 5 + Math.random() * plant.reproductionRadius;
@@ -601,30 +591,53 @@ createApp({
                             const newY = Math.max(0, Math.min(areaHeight - 10, plant.y + Math.sin(angle) * distance));
                             
                             if (!isPositionOccupied(newX, newY, 10, plants.value)) {
-                                addPlant(plant.type, newX, newY);
+                                addPlant('Grass', newX, newY);
+                            }
+                        }
+                    }
+                    // Размножение цветов
+                    else if (plant.type === 'Flower'
+                        && (season.value === 'Spring' || season.value === 'Summer') 
+                        && (plant.age % plant.reproductionAge === 0) 
+                        && Math.random() < plant.reproductionRate 
+                        && plants.value.length < 300) {
+                        
+                        const childrenCount = Math.floor(Math.random() * 2) + 1;
+                        
+                        for (let j = 0; j < childrenCount; j++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const distance = 5 + Math.random() * plant.reproductionRadius;
+                            const newX = Math.max(0, Math.min(areaWidth - 10, plant.x + Math.cos(angle) * distance));
+                            const newY = Math.max(0, Math.min(areaHeight - 10, plant.y + Math.sin(angle) * distance));
+                            
+                            if (!isPositionOccupied(newX, newY, 10, plants.value)) {
+                                addPlant('Flower', newX, newY);
                             }
                         }
                     }
                 }
             }
             
-            // Размножение цветов при соседстве 3+ дней подряд
-            plants.value.forEach(plant => {
-                if (plant.type === 'Flower' && plant.neighborFlowerDays >= 3 && plants.value.length < 150) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const distance = 10 + Math.random() * 20;
-                    const newX = Math.max(0, Math.min(areaWidth - 10, plant.x + Math.cos(angle) * distance));
-                    const newY = Math.max(0, Math.min(areaHeight - 10, plant.y + Math.sin(angle) * distance));
-                    
-                    if (!isPositionOccupied(newX, newY, 10, plants.value)) {
-                        addPlant('Flower', newX, newY);
-                        plant.neighborFlowerDays = 0;
+            // Размножение цветов при соседстве
+            if (plants.value.length < 300) {
+                plants.value.forEach(plant => {
+                    if (plant.type === 'Flower' && plant.neighborFlowerDays >= 3 && Math.random() < 0.5) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 10 + Math.random() * 20;
+                        const newX = Math.max(0, Math.min(areaWidth - 10, plant.x + Math.cos(angle) * distance));
+                        const newY = Math.max(0, Math.min(areaHeight - 10, plant.y + Math.sin(angle) * distance));
+                        
+                        if (!isPositionOccupied(newX, newY, 10, plants.value)) {
+                            addPlant('Flower', newX, newY);
+                            plant.neighborFlowerDays = 0;
+                        }
                     }
-                }
-            });
+                });
+            }
             
-            // Случайное появление новых растений весной и летом (кроме деревьев)
-            if ((season.value === 'Spring' || season.value === 'Summer') && Math.random() < 0.2 && plants.value.length < 120) {
+            // Случайное появление новых растений весной и летом
+            if ((season.value === 'Spring' || season.value === 'Summer') && 
+                Math.random() < 0.1) {
                 const nonTreeTypes = plantTypes.filter(t => t.name !== 'Tree');
                 const type = nonTreeTypes[Math.floor(Math.random() * nonTreeTypes.length)];
                 addPlant(type.name);
@@ -665,17 +678,11 @@ createApp({
             autumnDecayRate.value = 0;
             speed.value = 1;
             
-            // Стартовые растения: 3 дерева, 3 куста, 6 других растений
             for (let i = 0; i < 3; i++) {
                 addPlant('Tree');
-            }
-            for (let i = 0; i < 3; i++) {
                 addPlant('Bush');
-            }
-            const initialTypes = ['Flower', 'Grass'];
-            for (let i = 0; i < 6; i++) {
-                const type = initialTypes[Math.floor(Math.random() * initialTypes.length)];
-                addPlant(type);
+                addPlant('Flower');
+                addPlant('Grass');
             }
         };
         
@@ -697,7 +704,6 @@ createApp({
             isSimulating,
             speed,
             addPlant,
-            getPlantTooltip,
             simulateDay,
             startSimulation,
             stopSimulation,
