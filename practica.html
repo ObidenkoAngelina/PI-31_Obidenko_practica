@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Plant Community Simulation</title>
+<title>Симуляция растительного сообщества</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <style>
     #app {
@@ -18,6 +18,7 @@
         position: relative;
         margin-bottom: 20px;
         transition: background-color 1s ease;
+        overflow: hidden;
     }
     .plant {
         position: absolute;
@@ -92,7 +93,7 @@
         animation: fadeOut 2s infinite alternate;
     }
     .winter-sleep {
-        opacity: 0.7;
+        opacity: 0.5;
         filter: grayscale(30%);
     }
     @keyframes fadeOut {
@@ -103,19 +104,19 @@
 </head>
 <body>
 <div id="app">
-    <h1>Plant Community Simulation</h1>
+    <h1>Симуляция растительного сообщества</h1>
     
     <div class="controls">
-        <button @click="addPlant">Add Plant</button>
-        <button @click="simulateDay">Simulate 1 Day</button>
-        <button @click="startSimulation" :disabled="isSimulating">Start Simulation</button>
-        <button @click="stopSimulation" :disabled="!isSimulating">Stop Simulation</button>
-        <button @click="reset">Reset</button>
-        <button @click="changeSpeed">Speed: {{speed}}x</button>
+        <button @click="addPlant">Добавить растение</button>
+        <button @click="simulateDay">Симуляция 1 дня</button>
+        <button @click="startSimulation" :disabled="isSimulating">Старт</button>
+        <button @click="stopSimulation" :disabled="!isSimulating">Стоп</button>
+        <button @click="reset">Сброс</button>
+        <button @click="changeSpeed">Скорость: {{speed}}x</button>
     </div>
     
     <div class="season-display">
-        Year: {{ year }}, Season: {{ season }} (Day {{ dayInSeason }}/{{ seasonLength }})
+        Год: {{ year }}, Сезон: {{ season }} (День {{ dayInSeason }}/{{ seasonLength }})
     </div>
     
     <div class="simulation-area" :class="season.toLowerCase()" ref="simulationArea">
@@ -134,16 +135,16 @@
                 width: plant.size + 'px',
                 height: plant.size + 'px',
                 backgroundColor: plant.color,
-                zIndex: plant.height,
+                zIndex: (plant.type === 'Flower' || plant.type === 'Grass') ? 1 : 3,
                 opacity: plant.isDormant ? 0.5 : 0.8
             }"
         ></div>
     </div>
     
     <div class="stats">
-        <p>Day: {{ totalDays }} ({{ season }})</p>
-        <p>Plants: {{ plants.length }} ({{ activePlantsCount }} active)</p>
-        <p v-if="season === 'Autumn'">Autumn decay: {{ autumnDecayRate.toFixed(2) }}% per day</p>
+        <p>День: {{ totalDays }} ({{ season }})</p>
+        <p>Растений: {{ plants.length }} (Активных: {{ activePlantsCount }})</p>
+        <p v-if="season === 'Autumn'">Осеннее увядание: {{ autumnDecayRate.toFixed(2) }}% в день</p>
     </div>
 </div>
 
@@ -191,12 +192,12 @@ createApp({
             });
         };
         
-        // Обновленные параметры для растений:
+        // Параметры растений
         const plantTypes = [
             { 
                 name: 'Tree', 
                 color: '#27ae60', 
-                growthRate: 0.2,  // медленный рост
+                growthRate: 0.2,  
                 aggression: 0.7, 
                 maxSize: 120, 
                 shadeTolerance: 0.3, 
@@ -204,7 +205,7 @@ createApp({
                 autumnDecay: 0,
                 seasonalGrowth: true,
                 immortal: true,
-                reproductionRate: 0.5, // 50% шанс размножения весной
+                reproductionRate: 0.5, 
                 reproductionAge: 365,
                 reproductionRadius: 60,
                 initialSize: 5
@@ -212,7 +213,7 @@ createApp({
             { 
                 name: 'Bush', 
                 color: '#16a085', 
-                growthRate: 0.18, // чуть быстрее деревьев, но тоже медленно
+                growthRate: 0.18, 
                 aggression: 0.6, 
                 maxSize: 70, 
                 shadeTolerance: 0.4, 
@@ -220,7 +221,7 @@ createApp({
                 autumnDecay: 0,
                 seasonalGrowth: true,
                 immortal: true,
-                reproductionRate: 0.4, // чуть ниже чем у деревьев
+                reproductionRate: 0.4, 
                 reproductionAge: 270,
                 reproductionRadius: 40,
                 initialSize: 6
@@ -230,7 +231,7 @@ createApp({
                 color: '#e74c3c', 
                 growthRate: 1.5, 
                 aggression: 0.3, 
-                maxSize: 18, // уменьшен размер
+                maxSize: 18, 
                 shadeTolerance: 0.8, 
                 coldResistance: 0.3, 
                 autumnDecay: 0.7,
@@ -241,12 +242,12 @@ createApp({
                 reproductionRadius: 20,
                 respawnInSpring: true,
                 respawnChance: 0.7,
-                initialSize: 4, // меньше размер по дефолту
+                initialSize: 4,
             },
             { 
                 name: 'Grass', 
                 color: '#2ecc71', 
-                growthRate: 1.8, // увеличена скорость роста
+                growthRate: 1.8, 
                 aggression: 0.5, 
                 maxSize: 15, 
                 shadeTolerance: 0.9, 
@@ -254,7 +255,7 @@ createApp({
                 autumnDecay: 0.5,
                 seasonalGrowth: false,
                 immortal: false,
-                reproductionRate: 0.9, // очень высокая скорость размножения
+                reproductionRate: 0.9, 
                 reproductionAge: 5,
                 reproductionRadius: 10,
                 respawnInSpring: true,
@@ -265,9 +266,9 @@ createApp({
         
         const getPlantTooltip = (plant) => {
             let status = plant.isDormant ? 
-                ((plant.type === 'Tree' || plant.type === 'Bush') ? 'Winter sleep' : 'Dormant') : 
-                plant.isDying ? 'Dying' : 'Active';
-            return `Type: ${plant.type}\nAge: ${plant.age} days\nHealth: ${plant.health.toFixed(2)}\nSize: ${plant.size.toFixed(1)}px\nStatus: ${status}`;
+                ((plant.type === 'Tree' || plant.type === 'Bush') ? 'Зимний покой' : 'Спящее') : 
+                plant.isDying ? 'Умирает' : 'Активно';
+            return `Тип: ${plant.type}\nВозраст: ${plant.age} дней\nЗдоровье: ${plant.health.toFixed(2)}\nРазмер: ${plant.size.toFixed(1)}px\nСтатус: ${status}`;
         };
         
         const calculateGrowthModifier = (plant) => {
@@ -514,6 +515,31 @@ createApp({
                         plant.health -= 0.005;
                     }
                 } else {
+                    // Вычисляем перекрытие для цветов
+                    let coverageFactor = 0;
+                    if (plant.type === 'Flower') {
+                        // Проверяем перекрытие с деревьями и кустами
+                        for (const other of plants.value) {
+                            if (other.id !== plant.id && (other.type === 'Tree' || other.type === 'Bush') && !other.isDormant) {
+                                // Проверяем пересечение по координатам и размерам (округлим до кругов)
+                                const dx = (plant.x + plant.size / 2) - (other.x + other.size / 2);
+                                const dy = (plant.y + plant.size / 2) - (other.y + other.size / 2);
+                                const dist = Math.sqrt(dx * dx + dy * dy);
+                                const radiusSum = (plant.size + other.size) / 2;
+                                if (dist < radiusSum) {
+                                    // Чем меньше dist, тем сильнее перекрытие
+                                    const overlap = (radiusSum - dist) / radiusSum; // от 0 до 1
+                                    coverageFactor += overlap;
+                                }
+                            }
+                        }
+                        coverageFactor = Math.min(coverageFactor, 1);
+                        if (coverageFactor > 0) {
+                            // Уменьшаем здоровье цветка пропорционально перекрытию
+                            plant.health -= 0.05 * coverageFactor;
+                        }
+                    }
+                    
                     const light = calculateLight(plant);
                     const growthModifier = calculateGrowthModifier(plant);
                     
@@ -534,7 +560,7 @@ createApp({
                         plant.y = Math.max(0, Math.min(areaHeight - plant.size, plant.y));
                     }
                     
-                    // Размножение деревьев и кустов (по 50% весной, по возрасту и шансам)
+                    // Размножение деревьев и кустов
                     if ((plant.type === 'Tree' || plant.type === 'Bush') 
                         && season.value === 'Spring' 
                         && plant.age >= plant.reproductionAge 
@@ -560,7 +586,7 @@ createApp({
                             }
                         }
                     }
-                    // Размножение цветов и травы (по возрасту и вероятности)
+                    // Размножение цветов и травы
                     else if ((plant.type === 'Flower' || plant.type === 'Grass') 
                         && (season.value === 'Spring' || season.value === 'Summer') 
                         && (plant.age % plant.reproductionAge === 0) 
